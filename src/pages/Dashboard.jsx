@@ -23,10 +23,9 @@ function CoachCard({ stats }) {
 
   useEffect(() => {
     generateCoachMessage()
-  }, [stats])
+  }, [])
 
   async function generateCoachMessage() {
-    if (!stats) return
     setLoading(true)
     try {
       const res = await fetch(`${API_BASE}/api/coach/briefing`)
