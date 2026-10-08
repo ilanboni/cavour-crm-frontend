@@ -38,6 +38,10 @@ export const api = {
   creaAppuntamento: (data) => request("/api/appuntamenti", { method: "POST", body: JSON.stringify(data) }),
   aggiornaAppuntamento: (id, data) => request(`/api/appuntamenti/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   getScoutingOggi: () => request("/api/scouting/oggi"),
+  getCaccia: (params = {}) => request(`/api/caccia?${new URLSearchParams({ limit: 150, ...params })}`),
+  getCacciaStats: () => request("/api/caccia/stats"),
+  getCacciaDettaglio: (id) => request(`/api/caccia/${id}`),
+  aggiornaCaccia: (id, data) => request(`/api/caccia/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 }
 
 export const fmt = (n) => n ? "€" + Number(n).toLocaleString("it-IT", { maximumFractionDigits: 0 }) : "—"

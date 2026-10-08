@@ -6,6 +6,7 @@ import ClienteDetail from "./pages/ClienteDetail.jsx"
 import Immobili from "./pages/Immobili.jsx"
 import ImmobileDetail from "./pages/ImmobileDetail.jsx"
 import Scouting from "./pages/Scouting.jsx"
+import Caccia from "./pages/Caccia.jsx"
 import Agenda from "./pages/Agenda.jsx"
 
 const navItems = [
@@ -13,10 +14,11 @@ const navItems = [
   { to: "/clienti", label: "Clienti", icon: "◉" },
   { to: "/immobili", label: "Immobili", icon: "⬡" },
   { to: "/scouting", label: "Scouting", icon: "◎" },
+  { to: "/caccia", label: "Caccia", icon: "◆" },
   { to: "/agenda", label: "Agenda", icon: "◷" },
 ]
 
-const pageTitles = { "/": "Dashboard", "/clienti": "Clienti", "/immobili": "Immobili", "/scouting": "Scouting", "/agenda": "Agenda" }
+const pageTitles = { "/": "Dashboard", "/clienti": "Clienti", "/immobili": "Immobili", "/scouting": "Scouting", "/caccia": "Caccia", "/agenda": "Agenda" }
 
 export default function App() {
   const location = useLocation()
@@ -62,6 +64,7 @@ export default function App() {
             <Route path="/immobili" element={<Immobili />} />
             <Route path="/immobili/:id" element={<ImmobileDetail />} />
             <Route path="/scouting" element={<Scouting />} />
+            <Route path="/caccia" element={<Caccia />} />
             <Route path="/agenda" element={<Agenda />} />
           </Routes>
         </main>
