@@ -16,6 +16,7 @@ export const api = {
   getAppuntamentiCliente: (id) => request(`/api/clienti/${id}/appuntamenti`),
   getDocumentiCliente: (id) => request(`/api/clienti/${id}/documenti`),
   getRichiesteCliente: (id) => request(`/api/clienti/${id}/richieste`),
+  getMatchingEsterni: (id) => request(`/api/clienti/${id}/matching-esterni`),
   creaCliente: (data) => request("/api/clienti", { method: "POST", body: JSON.stringify(data) }),
   aggiornaCliente: (id, data) => request(`/api/clienti/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   getImmobili: (params = {}) => request(`/api/immobili?${new URLSearchParams({ limit: 50, ...params })}`),

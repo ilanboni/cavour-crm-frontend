@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { api, fmt, fmtData, fmtOra } from "../api.js"
+import { api, fmt, fmtMq, fmtData, fmtOra } from "../api.js"
 
 export default function ClienteDetail() {
   const { id } = useParams()
@@ -11,6 +11,8 @@ export default function ClienteDetail() {
   const [appts, setAppts] = useState([])
   const [docs, setDocs] = useState([])
   const [richieste, setRichieste] = useState([])
+  const [mercato, setMercato] = useState(null)
+  const [filtro, setFiltro] = useState(null)
   const [loading, setLoading] = useState(true)
   const [testo, setTesto] = useState("")
   const [tipo, setTipo] = useState("nota")
@@ -22,6 +24,7 @@ export default function ClienteDetail() {
     if (tab === "appuntamenti") loadAppts()
     if (tab === "documenti") loadDocs()
     if (tab === "richieste") loadRichieste()
+    if (tab === "matching") loadMercato()
   }, [tab, id])
 
   async function loadCliente() { setLoading(true); try { setCliente(await api.getCliente(id)); loadComms() } catch {} setLoading(false) }
@@ -29,6 +32,7 @@ export default function ClienteDetail() {
   async function loadAppts() { try { setAppts(await api.getAppuntamentiCliente(id)) } catch {} }
   async function loadDocs() { try { setDocs(await api.getDocumentiCliente(id)) } catch {} }
   async function loadRichieste() { try { setRichieste(await api.getRichiesteCliente(id)) } catch {} }
+  async function loadMercato() { setMercato(null); try { setMercato(await api.getMatchingEsterni(id)) } catch { setMercato({ immobili: [], conteggi: {}, richiesta: null }) } }
 
   async function saveComunicazione(e) {
     e.preventDefault()
@@ -78,7 +82,7 @@ export default function ClienteDetail() {
       </div>
 
       <div className="tabs">
-        {["comunicazioni","appuntamenti","documenti","richieste"].map(t => (
+        {["comunicazioni","appuntamenti","documenti","richieste","matching"].map(t => (
           <div key={t} className={"tab " + (tab === t ? "active" : "")} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase()+t.slice(1)}</div>
         ))}
       </div>
@@ -137,6 +141,48 @@ export default function ClienteDetail() {
                 <div className="row-end"><span className={"badge " + (r.attiva ? "badge-green" : "badge-gray")}>{r.attiva ? "attiva" : "inattiva"}</span></div>
               </div>
             ))
+        )}
+        {tab === "matching" && (
+          !mercato ? <div className="empty">Cerco sul mercato...</div>
+          : !mercato.richiesta ? <div className="empty">Nessuna richiesta attiva: il matching parte da li.</div>
+          : (() => {
+              const etichette = { privato: "Privato", multiagenzia: "Multiagenzia", esclusiva: "Probabile esclusiva" }
+              const colori = { privato: "badge-green", multiagenzia: "badge-gold", esclusiva: "badge-blue" }
+              const lista = filtro ? mercato.immobili.filter(i => i.classificazione === filtro) : mercato.immobili
+              return (
+                <>
+                  <div style={{ padding: "0.85rem 1.25rem", borderBottom: "1px solid var(--gold-border)", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <button className={"btn btn-sm " + (filtro === null ? "btn-gold" : "btn-ghost")} onClick={() => setFiltro(null)}>Tutti {mercato.immobili.length}</button>
+                    {["privato","multiagenzia","esclusiva"].map(k => (
+                      <button key={k} className={"btn btn-sm " + (filtro === k ? "btn-gold" : "btn-ghost")} onClick={() => setFiltro(k)}>
+                        {etichette[k]} {mercato.conteggi[k] || 0}
+                      </button>
+                    ))}
+                    <span style={{ fontSize: 11, color: "var(--white-muted)", marginLeft: "auto" }}>
+                      {mercato.richiesta.zona} - {mercato.richiesta.mq_minimi}-{mercato.richiesta.mq_massimi} mq - fino a {fmt(mercato.richiesta.budget_massimo)}
+                    </span>
+                  </div>
+                  {lista.length === 0 ? <div className="empty">Nessun immobile in questa categoria</div>
+                    : lista.map(i => (
+                      <div key={i.classificazione + "-" + i.id} className="row-item">
+                        <div className="row-body">
+                          <div className="row-title">{i.indirizzo || i.titolo || "Senza indirizzo"}</div>
+                          <div className="row-sub">
+                            {[i.zona, fmtMq(i.mq), i.locali ? i.locali + " locali" : "", i.bagni ? i.bagni + " bagni" : "", i.piano ? "piano " + i.piano : ""].filter(Boolean).join(" - ")}
+                            {i.classificazione === "multiagenzia" && i.num_agenzie ? ` - ${i.num_agenzie} agenzie` : ""}
+                            {i.giorni_sul_mercato ? ` - da ${i.giorni_sul_mercato} giorni` : ""}
+                          </div>
+                        </div>
+                        <div className="row-end">
+                          <div className="row-price">{fmt(i.prezzo)}</div>
+                          <span className={"badge " + colori[i.classificazione]}>{etichette[i.classificazione]}</span>
+                          {i.url_annuncio && <a href={i.url_annuncio} target="_blank" rel="noopener" className="btn btn-outline btn-sm" style={{ marginLeft: 8 }}>Annuncio</a>}
+                        </div>
+                      </div>
+                    ))}
+                </>
+              )
+            })()
         )}
       </div>
     </div>
