@@ -78,6 +78,19 @@ function Mappa({ lista, onPick }) {
   return <div ref={box} style={{ height: 460, borderRadius: 14, overflow: "hidden", border: "1px solid var(--gold-border)" }} />
 }
 
+function Freschezza({ giorni, corto }) {
+  // Quanto e' vecchio l'ultimo annuncio ancora visto vivo sul portale.
+  // Senza questo si scopriva cliccando un link e trovando una pagina morta.
+  if (giorni === null || giorni === undefined) {
+    return <span className="badge badge-gray" title="Nessuno degli annunci risulta nel censimento">annunci non tracciati</span>
+  }
+  if (giorni <= 7) return null
+  if (giorni > 30) {
+    return <span className="badge badge-red">annunci fermi da {giorni} giorni</span>
+  }
+  return <span className="badge badge-gray">{corto ? `visti ${giorni}gg fa` : `annunci visti ${giorni} giorni fa`}</span>
+}
+
 function comeLista(v) {
   // I campi jsonb possono arrivare come stringa invece che come array.
   // Prima o poi ricapita: meglio tollerarlo che far sparire la pagina.
@@ -146,6 +159,7 @@ function Dettaglio({ id, onClose, onCambiato }) {
               <div><Scarto pct={im.scarto_pct} /></div>
               <div>{im.num_agenzie} agenzie: {comeLista(im.lista_agenzie).join(", ") || "—"}</div>
               <div>In archivio da {im.giorni_in_archivio} giorni · primo avvistamento {new Date(im.primo_visto).toLocaleDateString("it-IT")}</div>
+              <div>Ultimo annuncio visto vivo: {im.visto_ultima ? new Date(im.visto_ultima).toLocaleDateString("it-IT") : "mai, nessun annuncio nel censimento"} <Freschezza giorni={im.giorni_dall_ultimo_annuncio} /></div>
               {im.doppio_vendita_affitto && <div className="badge badge-gold">Stesso immobile in vendita e in affitto</div>}
               {im.clienti_interessati > 0 && <div style={{ color: "var(--gold)" }}>{im.clienti_interessati} clienti in cerca: {im.nomi_clienti}</div>}
             </div>
@@ -305,6 +319,7 @@ export default function Caccia() {
                 </div>
                 <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
                   <Scarto pct={im.scarto_pct} />
+                  <Freschezza giorni={im.giorni_dall_ultimo_annuncio} corto />
                   {im.clienti_interessati > 0 && <span className="badge badge-green">{im.clienti_interessati} clienti</span>}
                   {im.doppio_vendita_affitto && <span className="badge badge-gold">vendita+affitto</span>}
                   {im.fase !== "da_lavorare" && <span className="badge badge-gray">{etichettaFase(im.fase)}</span>}
