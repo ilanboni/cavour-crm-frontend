@@ -78,6 +78,16 @@ function Mappa({ lista, onPick }) {
   return <div ref={box} style={{ height: 460, borderRadius: 14, overflow: "hidden", border: "1px solid var(--gold-border)" }} />
 }
 
+function comeLista(v) {
+  // I campi jsonb possono arrivare come stringa invece che come array.
+  // Prima o poi ricapita: meglio tollerarlo che far sparire la pagina.
+  if (Array.isArray(v)) return v
+  if (typeof v === "string" && v.trim()) {
+    try { const p = JSON.parse(v); return Array.isArray(p) ? p : [v] } catch { return [v] }
+  }
+  return []
+}
+
 function Dettaglio({ id, onClose, onCambiato }) {
   const [d, setD] = useState(null)
   const [salvando, setSalvando] = useState(false)
@@ -109,7 +119,9 @@ function Dettaglio({ id, onClose, onCambiato }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--dark-2)", borderLeft: "1px solid var(--gold-border)", width: "100%", maxWidth: 520, overflowY: "auto", padding: "1.25rem" }}>
-        {!im ? <div className="loading">Caricamento...</div> : (
+        {!im ? (errore
+          ? <div className="badge badge-red" style={{ display: "block", padding: "0.6rem" }}>{errore}</div>
+          : <div className="loading">Caricamento...</div>) : (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <div>
@@ -132,7 +144,7 @@ function Dettaglio({ id, onClose, onCambiato }) {
               <div><b>{fmt(im.prezzo)}</b>{im.eur_mq ? ` · ${Number(im.eur_mq).toLocaleString("it-IT")} €/mq` : ""}</div>
               <div>Mediana zona: {im.mediana_zona ? Number(im.mediana_zona).toLocaleString("it-IT") + " €/mq" : "campione troppo piccolo"} {im.campione_zona ? `(${im.campione_zona} confronti)` : ""}</div>
               <div><Scarto pct={im.scarto_pct} /></div>
-              <div>{im.num_agenzie} agenzie: {(im.lista_agenzie || []).join(", ") || "—"}</div>
+              <div>{im.num_agenzie} agenzie: {comeLista(im.lista_agenzie).join(", ") || "—"}</div>
               <div>In archivio da {im.giorni_in_archivio} giorni · primo avvistamento {new Date(im.primo_visto).toLocaleDateString("it-IT")}</div>
               {im.doppio_vendita_affitto && <div className="badge badge-gold">Stesso immobile in vendita e in affitto</div>}
               {im.clienti_interessati > 0 && <div style={{ color: "var(--gold)" }}>{im.clienti_interessati} clienti in cerca: {im.nomi_clienti}</div>}
@@ -177,10 +189,10 @@ function Dettaglio({ id, onClose, onCambiato }) {
               )}
             </div>
 
-            {(im.listing_urls || []).length > 0 && (
+            {comeLista(im.listing_urls).length > 0 && (
               <div style={{ marginBottom: "1rem" }}>
                 <div className="nav-section-label">Annunci</div>
-                {(im.listing_urls || []).map((u, k) => (
+                {comeLista(im.listing_urls).map((u, k) => (
                   <div key={k}><a href={u} target="_blank" rel="noreferrer" style={{ color: "var(--gold)", fontSize: 12 }}>{u}</a></div>
                 ))}
               </div>
