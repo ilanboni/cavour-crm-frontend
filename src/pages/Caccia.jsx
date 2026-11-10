@@ -287,7 +287,7 @@ function Dettaglio({ id, onClose, onCambiato }) {
                 </div>
               ))}
               <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                <input className="input" placeholder="Cosa c'\u00e8 da fare" value={nuovaAttivita}
+                <input className="input" placeholder="Cosa c'è da fare" value={nuovaAttivita}
                        onChange={e => setNuovaAttivita(e.target.value)}
                        onKeyDown={e => { if (e.key === "Enter") aggiungiAttivita() }} />
                 <button className="btn btn-gold btn-sm" disabled={salvando} onClick={aggiungiAttivita}>Aggiungi</button>
