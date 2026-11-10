@@ -6,6 +6,9 @@ async function request(path, options = {}) {
     ...options
   })
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`)
+  // Una 204 non ha corpo: res.json() lancerebbe e una cancellazione riuscita
+  // sembrerebbe fallita.
+  if (res.status === 204 || res.headers.get("content-length") === "0") return null
   return res.json()
 }
 
@@ -43,6 +46,11 @@ export const api = {
   getCacciaStats: () => request("/api/caccia/stats"),
   getCacciaDettaglio: (id) => request(`/api/caccia/${id}`),
   aggiornaCaccia: (id, data) => request(`/api/caccia/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  creaAttivitaCaccia: (id, data) => request(`/api/caccia/${id}/attivita`, { method: "POST", body: JSON.stringify(data) }),
+  aggiornaAttivitaCaccia: (attivitaId, data) => request(`/api/caccia/attivita/${attivitaId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  eliminaAttivitaCaccia: (attivitaId) => request(`/api/caccia/attivita/${attivitaId}`, { method: "DELETE" }),
+  aggiungiAnnuncioCaccia: (id, data) => request(`/api/caccia/${id}/annunci`, { method: "POST", body: JSON.stringify(data) }),
+  eliminaAnnuncioCaccia: (annuncioId) => request(`/api/caccia/annunci/${annuncioId}`, { method: "DELETE" }),
 }
 
 export const fmt = (n) => n ? "€" + Number(n).toLocaleString("it-IT", { maximumFractionDigits: 0 }) : "—"

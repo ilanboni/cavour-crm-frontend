@@ -78,6 +78,17 @@ function Mappa({ lista, onPick }) {
   return <div ref={box} style={{ height: 460, borderRadius: 14, overflow: "hidden", border: "1px solid var(--gold-border)" }} />
 }
 
+function Stella({ attivo, onClick, titolo }) {
+  return (
+    <span role="button" title={titolo || (attivo ? "Togli dai preferiti" : "Metti fra i preferiti")}
+      onClick={e => { e.stopPropagation(); onClick() }}
+      style={{ cursor: "pointer", fontSize: 17, lineHeight: 1, userSelect: "none",
+               color: attivo ? "var(--gold)" : "var(--white-muted)", opacity: attivo ? 1 : 0.45 }}>
+      {attivo ? "\u2605" : "\u2606"}
+    </span>
+  )
+}
+
 function Freschezza({ giorni, corto }) {
   // Quanto e' vecchio l'ultimo annuncio ancora visto vivo sul portale.
   // Senza questo si scopriva cliccando un link e trovando una pagina morta.
@@ -106,6 +117,52 @@ function Dettaglio({ id, onClose, onCambiato }) {
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState("")
   const [prop, setProp] = useState({})
+  const [nuovaAttivita, setNuovaAttivita] = useState("")
+  const [nuovoAnnuncio, setNuovoAnnuncio] = useState({ url: "", agenzia: "", nota: "" })
+
+  async function ricarica() {
+    const r = await api.getCacciaDettaglio(id)
+    setD(r); onCambiato && onCambiato()
+  }
+
+  async function aggiungiAttivita() {
+    const testo = nuovaAttivita.trim()
+    if (!testo) return
+    setSalvando(true); setErrore("")
+    try { await api.creaAttivitaCaccia(id, { testo }); setNuovaAttivita(""); await ricarica() }
+    catch (e) { setErrore(e.message || String(e)) }
+    setSalvando(false)
+  }
+
+  async function spuntaAttivita(a) {
+    setErrore("")
+    try { await api.aggiornaAttivitaCaccia(a.id, { fatto: !a.fatto }); await ricarica() }
+    catch (e) { setErrore(e.message || String(e)) }
+  }
+
+  async function togliAttivita(a) {
+    setErrore("")
+    try { await api.eliminaAttivitaCaccia(a.id); await ricarica() }
+    catch (e) { setErrore(e.message || String(e)) }
+  }
+
+  async function aggiungiAnnuncio() {
+    const url = (nuovoAnnuncio.url || "").trim()
+    if (!url) return
+    setSalvando(true); setErrore("")
+    try {
+      await api.aggiungiAnnuncioCaccia(id, nuovoAnnuncio)
+      setNuovoAnnuncio({ url: "", agenzia: "", nota: "" })
+      await ricarica()
+    } catch (e) { setErrore(e.message || String(e)) }
+    setSalvando(false)
+  }
+
+  async function togliAnnuncio(a) {
+    setErrore("")
+    try { await api.eliminaAnnuncioCaccia(a.id); await ricarica() }
+    catch (e) { setErrore(e.message || String(e)) }
+  }
 
   useEffect(() => {
     api.getCacciaDettaglio(id).then(r => {
@@ -138,7 +195,9 @@ function Dettaglio({ id, onClose, onCambiato }) {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 19, color: "var(--white)" }}>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 19, color: "var(--white)",
+                              display: "flex", alignItems: "center", gap: 8 }}>
+                  <Stella attivo={!!im.preferito} onClick={() => salva({ preferito: !im.preferito })} />
                   {im.indirizzo || "Senza indirizzo"}
                 </div>
                 <div className="row-sub">{[im.zona, im.mq ? im.mq + " mq" : null, im.locali ? im.locali + " locali" : null].filter(Boolean).join(" · ")}</div>
@@ -203,6 +262,70 @@ function Dettaglio({ id, onClose, onCambiato }) {
               )}
             </div>
 
+            <div className="nav-section-label">Da fare</div>
+            <div className="card" style={{ padding: "0.75rem", marginBottom: "1rem", fontSize: 12.5 }}>
+              {(d.attivita || []).length === 0 && (
+                <div style={{ color: "var(--white-muted)", marginBottom: 8 }}>
+                  Niente ancora. Scrivi qui sotto cosa manca per andare avanti.
+                </div>
+              )}
+              {(d.attivita || []).map(a => (
+                <div key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "4px 0" }}>
+                  <input type="checkbox" checked={a.fatto} onChange={() => spuntaAttivita(a)}
+                         style={{ marginTop: 3, cursor: "pointer" }} />
+                  <div style={{ flex: 1, textDecoration: a.fatto ? "line-through" : "none",
+                                color: a.fatto ? "var(--white-muted)" : "var(--white)" }}>
+                    {a.testo}
+                    {a.fatto && a.fatto_at && (
+                      <span style={{ color: "var(--white-muted)", fontSize: 11 }}>
+                        {" \u00b7 " + new Date(a.fatto_at).toLocaleDateString("it-IT")}
+                      </span>
+                    )}
+                  </div>
+                  <span role="button" onClick={() => togliAttivita(a)} title="Elimina"
+                        style={{ cursor: "pointer", color: "var(--white-muted)", fontSize: 14 }}>&times;</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input className="input" placeholder="Cosa c'\u00e8 da fare" value={nuovaAttivita}
+                       onChange={e => setNuovaAttivita(e.target.value)}
+                       onKeyDown={e => { if (e.key === "Enter") aggiungiAttivita() }} />
+                <button className="btn btn-gold btn-sm" disabled={salvando} onClick={aggiungiAttivita}>Aggiungi</button>
+              </div>
+            </div>
+
+            <div className="nav-section-label">Altri annunci trovati da me</div>
+            <div className="card" style={{ padding: "0.75rem", marginBottom: "1rem", fontSize: 12 }}>
+              <div style={{ color: "var(--white-muted)", marginBottom: 8, fontSize: 11.5 }}>
+                Non contano come agenzie e non entrano nella verifica notturna: servono
+                a raccogliere dettagli per risalire al proprietario.
+              </div>
+              {(d.annunci_manuali || []).map(a => (
+                <div key={a.id} style={{ padding: "5px 0", borderTop: "1px solid var(--gold-border)" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <a href={a.url} target="_blank" rel="noreferrer"
+                       style={{ color: "var(--gold)", flex: 1, wordBreak: "break-all" }}>
+                      {a.agenzia || a.url}
+                    </a>
+                    <span role="button" onClick={() => togliAnnuncio(a)} title="Elimina"
+                          style={{ cursor: "pointer", color: "var(--white-muted)", fontSize: 14 }}>&times;</span>
+                  </div>
+                  {a.nota && <div style={{ color: "var(--white-muted)", marginTop: 2 }}>{a.nota}</div>}
+                </div>
+              ))}
+              <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+                <input className="input" placeholder="Link dell'annuncio" value={nuovoAnnuncio.url}
+                       onChange={e => setNuovoAnnuncio({ ...nuovoAnnuncio, url: e.target.value })} />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input className="input" placeholder="Agenzia" value={nuovoAnnuncio.agenzia}
+                         onChange={e => setNuovoAnnuncio({ ...nuovoAnnuncio, agenzia: e.target.value })} />
+                  <input className="input" placeholder="Cosa ci hai trovato" value={nuovoAnnuncio.nota}
+                         onChange={e => setNuovoAnnuncio({ ...nuovoAnnuncio, nota: e.target.value })} />
+                  <button className="btn btn-gold btn-sm" disabled={salvando} onClick={aggiungiAnnuncio}>Aggiungi</button>
+                </div>
+              </div>
+            </div>
+
             {comeLista(im.listing_urls).length > 0 && (
               <div style={{ marginBottom: "1rem" }}>
                 <div className="nav-section-label">Annunci</div>
@@ -229,10 +352,11 @@ export default function Caccia() {
   const [search, setSearch] = useState("")
   const [soloClienti, setSoloClienti] = useState(false)
   const [soloDoppi, setSoloDoppi] = useState(false)
+  const [soloPreferiti, setSoloPreferiti] = useState(false)
   const [mappaAperta, setMappaAperta] = useState(false)
   const [dettaglio, setDettaglio] = useState(null)
 
-  useEffect(() => { carica() }, [ordina, tipo, fase, soloClienti, soloDoppi])
+  useEffect(() => { carica() }, [ordina, tipo, fase, soloClienti, soloDoppi, soloPreferiti])
   useEffect(() => { const t = setTimeout(carica, 400); return () => clearTimeout(t) }, [search])
 
   async function carica() {
@@ -244,10 +368,18 @@ export default function Caccia() {
       if (search) params.search = search
       if (soloClienti) params.solo_con_clienti = true
       if (soloDoppi) params.solo_doppi = true
+      if (soloPreferiti) params.solo_preferiti = true
       const [d, s] = await Promise.all([api.getCaccia(params), api.getCacciaStats()])
       setLista(d.data || []); setTotal(d.total || 0); setStats(s)
     } catch (e) { console.error(e) }
     setLoading(false)
+  }
+
+  async function togglePreferito(im) {
+    // Ottimistico: la stella risponde subito, la lista si riordina al giro dopo.
+    setLista(l => l.map(x => x.id === im.id ? { ...x, preferito: !x.preferito } : x))
+    try { await api.aggiornaCaccia(im.id, { preferito: !im.preferito }) }
+    catch (e) { console.error(e); carica() }
   }
 
   const pieno = stats && stats.in_caccia >= stats.tetto
@@ -293,6 +425,7 @@ export default function Caccia() {
         <button className={"btn btn-sm " + (tipo === "" ? "btn-gold" : "btn-ghost")} onClick={() => setTipo("")}>Tutti</button>
         <button className={"btn btn-sm " + (soloClienti ? "btn-gold" : "btn-ghost")} onClick={() => setSoloClienti(!soloClienti)}>Con clienti</button>
         <button className={"btn btn-sm " + (soloDoppi ? "btn-gold" : "btn-ghost")} onClick={() => setSoloDoppi(!soloDoppi)}>Vendita+affitto</button>
+        <button className={"btn btn-sm " + (soloPreferiti ? "btn-gold" : "btn-ghost")} onClick={() => setSoloPreferiti(!soloPreferiti)}>Preferiti</button>
         <select className="input" value={fase} onChange={e => setFase(e.target.value)} style={{ maxWidth: 180 }}>
           <option value="">Tutte le fasi</option>
           {FASI.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
@@ -311,6 +444,9 @@ export default function Caccia() {
           : lista.map(im => (
             <div key={im.id} className="row-item" style={{ cursor: "pointer" }} onClick={() => setDettaglio(im.id)}>
               <Punteggio valore={ordina === "affare" ? im.punteggio_affare : im.punteggio} />
+              <div style={{ display: "flex", alignItems: "center", paddingRight: 4 }}>
+                <Stella attivo={!!im.preferito} onClick={() => togglePreferito(im)} />
+              </div>
               <div className="row-body">
                 <div className="row-title">{im.indirizzo || "Senza indirizzo"}</div>
                 <div className="row-sub">
@@ -320,6 +456,8 @@ export default function Caccia() {
                 <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
                   <Scarto pct={im.scarto_pct} />
                   <Freschezza giorni={im.giorni_dall_ultimo_annuncio} corto />
+                  {im.attivita_da_fare > 0 && <span className="badge badge-gold">{im.attivita_da_fare} da fare</span>}
+                  {im.annunci_manuali > 0 && <span className="badge badge-gray">+{im.annunci_manuali} miei annunci</span>}
                   {im.clienti_interessati > 0 && <span className="badge badge-green">{im.clienti_interessati} clienti</span>}
                   {im.doppio_vendita_affitto && <span className="badge badge-gold">vendita+affitto</span>}
                   {im.fase !== "da_lavorare" && <span className="badge badge-gray">{etichettaFase(im.fase)}</span>}
