@@ -49,8 +49,13 @@ function Mappa({ lista, onPick }) {
     if (!window.L || !box.current) return
     if (!mappa.current) {
       mappa.current = window.L.map(box.current).setView([45.4722, 9.1700], 13)
-      window.L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; OpenStreetMap, &copy; CARTO", maxZoom: 19
+      // Il fondo scuro era di CARTO, che dal 2026 vuole una chiave: le
+      // piastrelle tornavano con scritto sopra "API KEY REQUIRED" e la mappa
+      // era illeggibile. OpenStreetMap non chiede chiavi; il tema scuro lo
+      // facciamo noi con un filtro CSS sulla classe mappa-scura.
+      window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap", maxZoom: 19,
+        className: "mappa-scura"
       }).addTo(mappa.current)
     }
     if (strato.current) strato.current.remove()

@@ -117,3 +117,10 @@ button { cursor: pointer; font-family: var(--font-body); }
 .progress-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.4s ease; }
 .stars { color: var(--gold); font-size: 11px; letter-spacing: 1px; }
 @media (max-width: 768px) { .sidebar { transform: translateX(-100%); } .content { margin-left: 0; } .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-2 { grid-template-columns: 1fr; } }
+
+/* Le piastrelle di OpenStreetMap sono chiare e nel CRM scuro stonano.
+   invert + hue-rotate le scurisce tenendo i colori nel verso giusto: e' il
+   modo di avere un fondo scuro senza dipendere da un servizio a chiave. */
+.mappa-scura {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.65);
+}
