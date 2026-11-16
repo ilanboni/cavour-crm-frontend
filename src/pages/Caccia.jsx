@@ -123,10 +123,10 @@ function comeLista(v) {
 // (agenzia, prezzo, mq, stato) e i link hanno un nome di finestra fisso, cosi'
 // i click si sovrascrivono invece di accumularsi.
 //
-// Prezzo, mq e agenzia per singolo annuncio oggi li abbiamo solo per quelli
-// che la verifica notturna ha trovato in disaccordo con la scheda: per gli
-// altri le colonne restano vuote, e si riempiranno quando il job salvera' i
-// dati di tutti e non solo dei discordi.
+// Prezzo, mq e agenzia per singolo annuncio arrivano da annunci_dettagli, che
+// il job notturno riempie per ogni annuncio vivo. Le righe verificate prima
+// che quel campo esistesse hanno i numeri solo per i discordi: restano senza
+// fino al primo giro successivo.
 function portale(u) {
   try {
     const h = new URL(u).hostname.replace(/^www\./, "")
@@ -140,9 +140,16 @@ function Annunci({ im }) {
 
   const verificati = new Set(comeLista(im.annunci_verificati))
   const scaduti = new Set(comeLista(im.annunci_scaduti))
+  // annunci_dettagli ha una voce per ogni annuncio vivo; annunci_discordi solo
+  // quelli che non combaciano. Si leggono entrambi perche' le righe verificate
+  // prima dell'aggiunta di annunci_dettagli hanno solo i discordi.
   const dettagli = {}
-  for (const a of comeLista(im.annunci_discordi)) {
+  for (const a of comeLista(im.annunci_dettagli)) {
     if (a && a.url) dettagli[a.url] = a
+  }
+  const discordi = new Set()
+  for (const a of comeLista(im.annunci_discordi)) {
+    if (a && a.url) { dettagli[a.url] = a; discordi.add(a.url) }
   }
 
   const nome = (k) => "pluri-" + im.id + "-" + k
@@ -177,7 +184,7 @@ function Annunci({ im }) {
                 <span style={{ whiteSpace: "nowrap", color: "var(--white-muted)" }}>{d.mq} mq</span>
               ) : null}
               {scaduto ? <span className="badge badge-gray">scaduto</span>
-                : d ? <span className="badge badge-red">non combacia</span>
+                : discordi.has(u) ? <span className="badge badge-red">non combacia</span>
                 : verificati.has(u) ? <span className="badge badge-green">verificato</span>
                 : <span className="badge badge-gray">da verificare</span>}
             </div>
