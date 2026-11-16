@@ -117,6 +117,77 @@ function comeLista(v) {
   return []
 }
 
+// Gli annunci erano una colonna di URL nudi, tutti con target="_blank": per
+// confrontarli bisognava aprirli uno per uno e in dieci minuti il browser era
+// pieno di schede identiche. Qui si vede in una riga cosa dice ogni annuncio
+// (agenzia, prezzo, mq, stato) e i link hanno un nome di finestra fisso, cosi'
+// i click si sovrascrivono invece di accumularsi.
+//
+// Prezzo, mq e agenzia per singolo annuncio oggi li abbiamo solo per quelli
+// che la verifica notturna ha trovato in disaccordo con la scheda: per gli
+// altri le colonne restano vuote, e si riempiranno quando il job salvera' i
+// dati di tutti e non solo dei discordi.
+function portale(u) {
+  try {
+    const h = new URL(u).hostname.replace(/^www\./, "")
+    return h.replace(/\.(it|com)$/, "")
+  } catch { return "" }
+}
+
+function Annunci({ im }) {
+  const tutti = comeLista(im.listing_urls)
+  if (tutti.length === 0) return null
+
+  const verificati = new Set(comeLista(im.annunci_verificati))
+  const scaduti = new Set(comeLista(im.annunci_scaduti))
+  const dettagli = {}
+  for (const a of comeLista(im.annunci_discordi)) {
+    if (a && a.url) dettagli[a.url] = a
+  }
+
+  const nome = (k) => "pluri-" + im.id + "-" + k
+  const apriTutti = () => {
+    tutti.forEach((u, k) => window.open(u, nome(k)))
+  }
+
+  return (
+    <div style={{ marginBottom: "1rem" }}>
+      <div className="nav-section-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ flex: 1 }}>Annunci ({tutti.length})</span>
+        <button className="btn btn-ghost btn-sm" onClick={apriTutti}>Apri tutti</button>
+      </div>
+      <div className="card" style={{ padding: "0.5rem 0.75rem", fontSize: 12 }}>
+        {tutti.map((u, k) => {
+          const d = dettagli[u]
+          const scaduto = scaduti.has(u)
+          return (
+            <div key={k} style={{
+              display: "flex", gap: 8, alignItems: "baseline", padding: "6px 0",
+              borderTop: k === 0 ? "none" : "1px solid var(--gold-border)",
+              opacity: scaduto ? 0.5 : 1
+            }}>
+              <a href={u} target={nome(k)} rel="noreferrer"
+                 style={{ color: "var(--gold)", flex: 1, wordBreak: "break-word" }}>
+                {(d && d.agenzia) || portale(u) + " \u00b7 annuncio " + (k + 1)}
+              </a>
+              {d && d.prezzo ? (
+                <span style={{ whiteSpace: "nowrap" }}>{fmt(d.prezzo)}</span>
+              ) : null}
+              {d && d.mq ? (
+                <span style={{ whiteSpace: "nowrap", color: "var(--white-muted)" }}>{d.mq} mq</span>
+              ) : null}
+              {scaduto ? <span className="badge badge-gray">scaduto</span>
+                : d ? <span className="badge badge-red">non combacia</span>
+                : verificati.has(u) ? <span className="badge badge-green">verificato</span>
+                : <span className="badge badge-gray">da verificare</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function Dettaglio({ id, onClose, onCambiato }) {
   const [d, setD] = useState(null)
   const [salvando, setSalvando] = useState(false)
@@ -331,14 +402,7 @@ function Dettaglio({ id, onClose, onCambiato }) {
               </div>
             </div>
 
-            {comeLista(im.listing_urls).length > 0 && (
-              <div style={{ marginBottom: "1rem" }}>
-                <div className="nav-section-label">Annunci</div>
-                {comeLista(im.listing_urls).map((u, k) => (
-                  <div key={k}><a href={u} target="_blank" rel="noreferrer" style={{ color: "var(--gold)", fontSize: 12 }}>{u}</a></div>
-                ))}
-              </div>
-            )}
+            <Annunci im={im} />
           </>
         )}
       </div>
