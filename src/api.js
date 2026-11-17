@@ -51,6 +51,8 @@ export const api = {
   eliminaAttivitaCaccia: (attivitaId) => request(`/api/caccia/attivita/${attivitaId}`, { method: "DELETE" }),
   aggiungiAnnuncioCaccia: (id, data) => request(`/api/caccia/${id}/annunci`, { method: "POST", body: JSON.stringify(data) }),
   eliminaAnnuncioCaccia: (annuncioId) => request(`/api/caccia/annunci/${annuncioId}`, { method: "DELETE" }),
+  escludiAnnuncioCaccia: (id, data) => request(`/api/caccia/${id}/annunci/escludi`, { method: "POST", body: JSON.stringify(data) }),
+  ripristinaAnnuncioCaccia: (id, data) => request(`/api/caccia/${id}/annunci/ripristina`, { method: "POST", body: JSON.stringify(data) }),
 }
 
 export const fmt = (n) => n ? "€" + Number(n).toLocaleString("it-IT", { maximumFractionDigits: 0 }) : "—"

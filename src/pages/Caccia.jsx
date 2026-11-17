@@ -119,14 +119,16 @@ function comeLista(v) {
 
 // Gli annunci erano una colonna di URL nudi, tutti con target="_blank": per
 // confrontarli bisognava aprirli uno per uno e in dieci minuti il browser era
-// pieno di schede identiche. Qui si vede in una riga cosa dice ogni annuncio
-// (agenzia, prezzo, mq, stato) e i link hanno un nome di finestra fisso, cosi'
-// i click si sovrascrivono invece di accumularsi.
+// pieno di schede identiche. Ilan: "i link delle agenzie non mi bastano e non
+// sono comodi per fare un lavoro preciso".
 //
-// Prezzo, mq e agenzia per singolo annuncio arrivano da annunci_dettagli, che
-// il job notturno riempie per ogni annuncio vivo. Le righe verificate prima
-// che quel campo esistesse hanno i numeri solo per i discordi: restano senza
-// fino al primo giro successivo.
+// Adesso ogni annuncio e' una riga con agenzia (o "privato"), prezzo, euro al
+// metro, metri e piano, perche' sono questi quattro numeri che dicono se due
+// annunci parlano dello stesso appartamento. Il link c'e' ancora, con un nome
+// di finestra fisso, cosi' i click si sovrascrivono invece di accumularsi.
+//
+// E quando NON e' lo stesso appartamento lo si puo' dire: via, tabella
+// "caccia_annunci_esclusi", e il job notturno non lo rimette piu' dentro.
 function portale(u) {
   try {
     const h = new URL(u).hostname.replace(/^www\./, "")
@@ -134,15 +136,18 @@ function portale(u) {
   } catch { return "" }
 }
 
-function Annunci({ im }) {
+function euroMq(prezzo, mq) {
+  if (!prezzo || !mq) return null
+  return Math.round(Number(prezzo) / Number(mq))
+}
+
+function Annunci({ im, esclusi, onEscludi, onRipristina, occupato }) {
   const tutti = comeLista(im.listing_urls)
-  if (tutti.length === 0) return null
+  const fuori = comeLista(esclusi)
+  if (tutti.length === 0 && fuori.length === 0) return null
 
   const verificati = new Set(comeLista(im.annunci_verificati))
   const scaduti = new Set(comeLista(im.annunci_scaduti))
-  // annunci_dettagli ha una voce per ogni annuncio vivo; annunci_discordi solo
-  // quelli che non combaciano. Si leggono entrambi perche' le righe verificate
-  // prima dell'aggiunta di annunci_dettagli hanno solo i discordi.
   const dettagli = {}
   for (const a of comeLista(im.annunci_dettagli)) {
     if (a && a.url) dettagli[a.url] = a
@@ -153,44 +158,108 @@ function Annunci({ im }) {
   }
 
   const nome = (k) => "pluri-" + im.id + "-" + k
-  const apriTutti = () => {
-    tutti.forEach((u, k) => window.open(u, nome(k)))
-  }
+  const apriTutti = () => tutti.forEach((u, k) => window.open(u, nome(k)))
+
+  // Il confronto serve a questo: se i metri o il piano ballano, o non e' lo
+  // stesso appartamento o uno dei due annunci e' scritto male.
+  const metri = [...new Set(tutti.map(u => dettagli[u] && dettagli[u].mq).filter(Boolean))]
+  const piani = [...new Set(tutti.map(u => dettagli[u] && dettagli[u].piano).filter(v => v !== null && v !== undefined && v !== ""))]
+  const prezzi = tutti.map(u => dettagli[u] && dettagli[u].prezzo).filter(Boolean).map(Number)
+  const forbice = prezzi.length > 1 ? Math.max(...prezzi) - Math.min(...prezzi) : 0
+
+  const cellaNum = { textAlign: "right", whiteSpace: "nowrap", padding: "6px 8px" }
+  const intest = { textAlign: "right", padding: "4px 8px", fontSize: 10, letterSpacing: "0.1em",
+                   textTransform: "uppercase", color: "var(--white-muted)", fontWeight: 400 }
 
   return (
     <div style={{ marginBottom: "1rem" }}>
       <div className="nav-section-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ flex: 1 }}>Annunci ({tutti.length})</span>
-        <button className="btn btn-ghost btn-sm" onClick={apriTutti}>Apri tutti</button>
+        {tutti.length > 0 && <button className="btn btn-ghost btn-sm" onClick={apriTutti}>Apri tutti</button>}
       </div>
-      <div className="card" style={{ padding: "0.5rem 0.75rem", fontSize: 12 }}>
-        {tutti.map((u, k) => {
-          const d = dettagli[u]
-          const scaduto = scaduti.has(u)
-          return (
-            <div key={k} style={{
-              display: "flex", gap: 8, alignItems: "baseline", padding: "6px 0",
-              borderTop: k === 0 ? "none" : "1px solid var(--gold-border)",
-              opacity: scaduto ? 0.5 : 1
-            }}>
-              <a href={u} target={nome(k)} rel="noreferrer"
-                 style={{ color: "var(--gold)", flex: 1, wordBreak: "break-word" }}>
-                {(d && d.agenzia) || portale(u) + " \u00b7 annuncio " + (k + 1)}
+      <div className="card" style={{ padding: 0, fontSize: 12, overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...intest, textAlign: "left" }}>Chi lo pubblica</th>
+              <th style={intest}>Prezzo</th>
+              <th style={intest}>&euro;/mq</th>
+              <th style={intest}>Mq</th>
+              <th style={intest}>Piano</th>
+              <th style={{ ...intest, textAlign: "left" }}>Stato</th>
+              <th style={intest}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {tutti.map((u, k) => {
+              const d = dettagli[u] || {}
+              const scaduto = scaduti.has(u)
+              const mqStrano = d.mq && metri.length > 1
+              const pianoStrano = (d.piano !== null && d.piano !== undefined && d.piano !== "") && piani.length > 1
+              return (
+                <tr key={k} style={{ borderTop: "1px solid var(--gold-border)", opacity: scaduto ? 0.5 : 1 }}>
+                  <td style={{ padding: "6px 8px", minWidth: 150 }}>
+                    <a href={u} target={nome(k)} rel="noreferrer"
+                       style={{ color: "var(--gold)", wordBreak: "break-word" }}>
+                      {d.privato ? "Privato" : (d.agenzia || portale(u) + " \u00b7 annuncio " + (k + 1))}
+                    </a>
+                    <div style={{ color: "var(--white-muted)", fontSize: 10.5 }}>{portale(u)}</div>
+                  </td>
+                  <td style={cellaNum}>{d.prezzo ? fmt(d.prezzo) : <span style={{ color: "var(--white-muted)" }}>&mdash;</span>}</td>
+                  <td style={{ ...cellaNum, color: "var(--white-muted)" }}>
+                    {euroMq(d.prezzo, d.mq) ? euroMq(d.prezzo, d.mq).toLocaleString("it-IT") : "\u2014"}
+                  </td>
+                  <td style={{ ...cellaNum, color: mqStrano ? "var(--red)" : "var(--white)" }}>{d.mq || "\u2014"}</td>
+                  <td style={{ ...cellaNum, color: pianoStrano ? "var(--red)" : "var(--white)" }}>
+                    {d.piano !== null && d.piano !== undefined && d.piano !== "" ? d.piano : "\u2014"}
+                  </td>
+                  <td style={{ padding: "6px 8px" }}>
+                    {scaduto ? <span className="badge badge-gray">scaduto</span>
+                      : discordi.has(u) ? <span className="badge badge-red">non combacia</span>
+                      : verificati.has(u) ? <span className="badge badge-green">verificato</span>
+                      : <span className="badge badge-gray">da verificare</span>}
+                  </td>
+                  <td style={{ ...cellaNum, paddingLeft: 0 }}>
+                    <button className="btn btn-ghost btn-sm" disabled={occupato}
+                            title="Questo annuncio non e' lo stesso immobile"
+                            onClick={() => onEscludi(u, d)}>Non &egrave; questo</button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        {(metri.length > 1 || piani.length > 1 || forbice > 0) && (
+          <div style={{ padding: "0.6rem 0.75rem", borderTop: "1px solid var(--gold-border)",
+                        fontSize: 11.5, color: "var(--white-muted)", lineHeight: 1.6 }}>
+            {forbice > 0 && (
+              <div><span style={{ color: "var(--gold)" }}>{fmt(forbice)} di differenza</span> fra il prezzo piu basso e il piu alto.</div>
+            )}
+            {metri.length > 1 && <div style={{ color: "var(--red)" }}>I metri non combaciano: {metri.join(", ")} mq. O non e lo stesso appartamento, o un annuncio e scritto male.</div>}
+            {piani.length > 1 && <div style={{ color: "var(--red)" }}>I piani non combaciano: {piani.join(", ")}.</div>}
+          </div>
+        )}
+      </div>
+
+      {fuori.length > 0 && (
+        <div className="card" style={{ padding: "0.6rem 0.75rem", marginTop: 8, fontSize: 11.5 }}>
+          <div style={{ color: "var(--white-muted)", marginBottom: 6 }}>
+            Esclusi da te perche non sono questo immobile. Il giro notturno non li rimette dentro.
+          </div>
+          {fuori.map((e, k) => (
+            <div key={k} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "3px 0" }}>
+              <a href={e.url} target="_blank" rel="noreferrer"
+                 style={{ color: "var(--white-muted)", flex: 1, wordBreak: "break-all", textDecoration: "line-through" }}>
+                {e.url}
               </a>
-              {d && d.prezzo ? (
-                <span style={{ whiteSpace: "nowrap" }}>{fmt(d.prezzo)}</span>
-              ) : null}
-              {d && d.mq ? (
-                <span style={{ whiteSpace: "nowrap", color: "var(--white-muted)" }}>{d.mq} mq</span>
-              ) : null}
-              {scaduto ? <span className="badge badge-gray">scaduto</span>
-                : discordi.has(u) ? <span className="badge badge-red">non combacia</span>
-                : verificati.has(u) ? <span className="badge badge-green">verificato</span>
-                : <span className="badge badge-gray">da verificare</span>}
+              {e.motivo && <span style={{ color: "var(--white-muted)" }}>{e.motivo}</span>}
+              <button className="btn btn-ghost btn-sm" disabled={occupato}
+                      onClick={() => onRipristina(e.url)}>Rimetti</button>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -245,6 +314,36 @@ function Dettaglio({ id, onClose, onCambiato }) {
     setErrore("")
     try { await api.eliminaAnnuncioCaccia(a.id); await ricarica() }
     catch (e) { setErrore(e.message || String(e)) }
+  }
+
+  // "Questo annuncio non e' lo stesso immobile". Due appartamenti uguali nello
+  // stesso stabile sono indistinguibili per qualunque regola automatica: lo
+  // vede solo chi apre i due annunci. Se dopo l'esclusione restano meno di due
+  // annunci, la riga non e' piu' un pluricondiviso e il server la chiude.
+  async function escludiAnnuncio(url, d) {
+    const chi = (d && (d.privato ? "Privato" : d.agenzia)) || "questo annuncio"
+    const motivo = window.prompt(
+      `Perche' ${chi} non e' lo stesso immobile? (facoltativo)\n\n` +
+      "L'annuncio sparisce dalla scheda e il giro notturno non lo rimette piu' dentro.", "")
+    if (motivo === null) return
+    setSalvando(true); setErrore("")
+    try {
+      const r = await api.escludiAnnuncioCaccia(id, { url, motivo: motivo.trim() || null })
+      if (r && r.ancora_pluricondiviso === false) {
+        onCambiato && onCambiato()
+        onClose()
+        return
+      }
+      await ricarica()
+    } catch (e) { setErrore(e.message || String(e)) }
+    setSalvando(false)
+  }
+
+  async function ripristinaAnnuncio(url) {
+    setSalvando(true); setErrore("")
+    try { await api.ripristinaAnnuncioCaccia(id, { url }); await ricarica() }
+    catch (e) { setErrore(e.message || String(e)) }
+    setSalvando(false)
   }
 
   useEffect(() => {
@@ -409,7 +508,8 @@ function Dettaglio({ id, onClose, onCambiato }) {
               </div>
             </div>
 
-            <Annunci im={im} />
+            <Annunci im={im} esclusi={d.annunci_esclusi} occupato={salvando}
+                     onEscludi={escludiAnnuncio} onRipristina={ripristinaAnnuncio} />
           </>
         )}
       </div>
