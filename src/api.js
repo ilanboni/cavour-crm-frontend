@@ -1,11 +1,60 @@
-﻿const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-f9d5d.up.railway.app"
+const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-f9d5d.up.railway.app"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stato del database, per la fascia in cima al CRM.
+//
+// Il 18 novembre 2026 Supabase e' stato irraggiungibile per due ore e il CRM
+// mostrava schermate vuote: non si capiva se un cliente non avesse appuntamenti
+// o se fosse il database a non rispondere. Il backend ora risponde ai GET con
+// l'ultima copia buona piu' le intestazioni X-Degradato e X-Dati-Vecchi
+// (vedi app/resilienza.py). Qui le leggiamo e lo diciamo a chi guarda.
+// ─────────────────────────────────────────────────────────────────────────────
+let statoDb = { degradato: false, datiVecchiIso: null }
+let ultimoDegradato = 0
+const ascoltatoriDb = new Set()
+
+function segnalaStatoDb(degradato, datiVecchiIso) {
+  if (degradato) {
+    ultimoDegradato = Date.now()
+  } else if (Date.now() - ultimoDegradato < 10000) {
+    // Una pagina fa piu' chiamate: se una e' degradata e la successiva no, la
+    // fascia non deve lampeggiare. Si spegne solo dopo dieci secondi puliti.
+    return
+  }
+  const prima = statoDb
+  statoDb = { degradato, datiVecchiIso: degradato ? datiVecchiIso : null }
+  if (prima.degradato === statoDb.degradato && prima.datiVecchiIso === statoDb.datiVecchiIso) return
+  ascoltatoriDb.forEach(fn => { try { fn(statoDb) } catch (e) { console.error(e) } })
+}
+
+export function osservaStatoDb(fn) {
+  ascoltatoriDb.add(fn)
+  fn(statoDb)
+  return () => ascoltatoriDb.delete(fn)
+}
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...options.headers },
     ...options
   })
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`)
+
+  if (!res.ok) {
+    // 503 e' il backend che dice "il database non risponde e non ho una copia".
+    // Va distinto da un errore nostro: il messaggio e' in italiano e si mostra.
+    if (res.status === 503) {
+      let corpo = null
+      try { corpo = await res.json() } catch (e) { /* corpo non JSON */ }
+      segnalaStatoDb(true, null)
+      const err = new Error(corpo?.messaggio || "Il database non risponde. Riprova fra qualche minuto.")
+      err.databaseGiu = true
+      throw err
+    }
+    throw new Error(`API error ${res.status}: ${path}`)
+  }
+
+  segnalaStatoDb(res.headers.get("X-Degradato") === "1", res.headers.get("X-Dati-Vecchi"))
+
   // Una 204 non ha corpo: res.json() lancerebbe e una cancellazione riuscita
   // sembrerebbe fallita.
   if (res.status === 204 || res.headers.get("content-length") === "0") return null

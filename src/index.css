@@ -124,3 +124,44 @@ button { cursor: pointer; font-family: var(--font-body); }
 .mappa-scura {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.65);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   La fascia che dice che il database non risponde.
+   Rossa ma non urlata: deve far capire che i dati sono vecchi senza coprire il
+   lavoro. Il punto pulsa perche' una fascia ferma si smette di vedere.
+   ───────────────────────────────────────────────────────────────────────────── */
+.fascia-degrado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 11px 16px;
+  border: 1px solid rgba(224, 82, 82, .35);
+  border-left: 3px solid var(--red);
+  border-radius: 4px;
+  background: rgba(224, 82, 82, .07);
+  color: var(--white);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.fascia-degrado strong { color: var(--red); font-weight: 600; }
+
+.fascia-degrado-punto {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: fascia-degrado-pulsa 1.8s ease-in-out infinite;
+}
+
+@keyframes fascia-degrado-pulsa {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fascia-degrado-punto { animation: none; }
+}
